@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Helmet Detection Results</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
     <div class="container">
@@ -19,6 +19,12 @@
                 <div id="status-display">
                     <p>Status: <span id="status">Checking...</span></p>
                 </div>
+            </div>
+            
+            <div class="live-stream-container" id="live-stream-section">
+                <h2>Live Processing Stream</h2>
+                <img id="live-stream" src="/video-stream/{{ task_id }}" alt="Live video processing stream">
+                <p class="note">This stream shows the processing in real-time. The final video will be available below once processing is complete.</p>
             </div>
             
             <div class="video-container hidden" id="video-section">
@@ -89,12 +95,14 @@
                         document.getElementById('result-video').src = `/video/${videoPath}`;
                         document.getElementById('video-section').classList.remove('hidden');
                         document.getElementById('stats-section').classList.remove('hidden');
+                        document.getElementById('live-stream-section').classList.add('hidden');
                         
                         // Update statistics
                         updateStats(data);
                     } else if (data.status === 'failed') {
                         clearInterval(checkInterval);
                         document.getElementById('status').textContent = `Failed: ${data.error || 'Unknown error'}`;
+                        document.getElementById('live-stream-section').classList.add('hidden');
                     }
                 })
                 .catch(error => {

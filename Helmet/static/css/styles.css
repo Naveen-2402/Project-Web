@@ -195,6 +195,30 @@ footer {
     color: #3498db;
 }
 
+.live-stream-container {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+#live-stream {
+    max-width: 100%;
+    border-radius: 4px;
+    max-height: 500px;
+    margin: 0 auto;
+    display: block;
+}
+
+.note {
+    margin-top: 10px;
+    font-size: 14px;
+    color: #777;
+    font-style: italic;
+}
+
 .video-container {
     background-color: #fff;
     border-radius: 8px;

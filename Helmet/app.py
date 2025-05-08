@@ -1,7 +1,8 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response
 import os
 import time
 import threading
+import cv2
 from werkzeug.utils import secure_filename
 from utils.detector import process_video
 
@@ -22,6 +23,8 @@ os.makedirs(RESULT_FOLDER, exist_ok=True)
 
 # Global variables for tracking processing status
 processing_status = {}
+# Global variable to store the latest processed frame for streaming
+current_processed_frames = {}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -30,13 +33,36 @@ def process_video_thread(input_path, output_path, task_id):
     """Process video in a separate thread and update status"""
     processing_status[task_id]['status'] = 'processing'
     try:
-        helmet_status, bike_stats = process_video(input_path, output_path)
+        # Initialize the streaming frame for this task
+        current_processed_frames[task_id] = None
+        
+        helmet_status, bike_stats = process_video(input_path, output_path, 
+                                                 frame_callback=lambda frame: update_current_frame(task_id, frame))
         processing_status[task_id]['status'] = 'completed'
         processing_status[task_id]['helmet_status'] = helmet_status
         processing_status[task_id]['bike_stats'] = bike_stats
     except Exception as e:
         processing_status[task_id]['status'] = 'failed'
         processing_status[task_id]['error'] = str(e)
+    finally:
+        # Clean up the frame when done
+        if task_id in current_processed_frames:
+            del current_processed_frames[task_id]
+
+def update_current_frame(task_id, frame):
+    """Update the current frame for streaming"""
+    current_processed_frames[task_id] = frame
+
+def generate_frames(task_id):
+    """Generator function for video streaming"""
+    while task_id in processing_status and processing_status[task_id]['status'] == 'processing':
+        if task_id in current_processed_frames and current_processed_frames[task_id] is not None:
+            frame = current_processed_frames[task_id]
+            # Convert frame to JPEG
+            _, jpeg = cv2.imencode('.jpg', frame)
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+        time.sleep(0.04)  # ~25 FPS
 
 @app.route('/')
 def index():
@@ -95,6 +121,15 @@ def get_status(task_id):
 @app.route('/video/<filename>')
 def serve_video(filename):
     return send_from_directory(app.config['RESULT_FOLDER'], filename)
+
+@app.route('/video-stream/<task_id>')
+def video_stream(task_id):
+    """Stream the video processing in real-time"""
+    if task_id not in processing_status:
+        return jsonify({'error': 'Task not found'}), 404
+    
+    return Response(generate_frames(task_id),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/result/<task_id>')
 def result(task_id):

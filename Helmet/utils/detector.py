@@ -47,12 +47,12 @@ def get_models():
         _models['helmet'] = YOLO('models/best-pp.pt')
         
         # Set confidence threshold for general model
-        _models['general'].conf = 0.7
+        _models['general'].conf = 0.9
     
     return _models
 
 # Video processing function
-def process_video(video_path, output_path):
+def process_video(video_path, output_path, frame_callback=None):
     # Get models
     models = get_models()
     general_model = models['general']
@@ -62,7 +62,7 @@ def process_video(video_path, output_path):
     person_tracker = DeepSort(
         max_age=30,
         n_init=3,
-        max_iou_distance=0.7,
+        max_iou_distance=0.1,
         max_cosine_distance=0.2,
         nn_budget=100
     )
@@ -286,6 +286,11 @@ def process_video(video_path, output_path):
         # Write the frame to output video
         out.write(display_frame)
         
+        # If a callback function is provided, pass the frame for streaming
+        if frame_callback:
+            callback_frame = display_frame.copy()
+            frame_callback(callback_frame)
+    
     # Release resources
     cap.release()
     out.release()
