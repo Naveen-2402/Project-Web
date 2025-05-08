@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helmet Detection Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Helmet Detection Results</h1>
+            <a href="/" class="back-link">⬅️ Back to Upload</a>
+        </header>
+        
+        <main>
+            <div class="status-container">
+                <h2>Processing Status</h2>
+                <div id="status-display">
+                    <p>Status: <span id="status">Checking...</span></p>
+                </div>
+            </div>
+            
+            <div class="video-container hidden" id="video-section">
+                <h2>Processed Video</h2>
+                <video id="result-video" controls>
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+
+            <div class="stats-container hidden" id="stats-section">
+                <h2>Detection Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>People Detected</h3>
+                        <p id="people-count">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Motorcycles Detected</h3>
+                        <p id="bike-count">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Helmets Worn</h3>
+                        <p id="helmet-count">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Compliance Rate</h3>
+                        <p id="compliance-rate">0%</p>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h3>Motorcycle Details</h3>
+                    <div id="bike-details">
+                        <!-- Will be populated with JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; 2025 Helmet Detection System</p>
+        </footer>
+    </div>
+
+    <script>
+        // Get task ID from URL
+        const taskId = "{{ task_id }}";
+        let videoPath = null;
+        let checkInterval = null;
+        
+        // Status checking
+        function checkStatus() {
+            fetch(`/status/${taskId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Task not found');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update status display
+                    document.getElementById('status').textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+                    
+                    if (data.status === 'completed') {
+                        // Clear the interval and show video
+                        clearInterval(checkInterval);
+                        videoPath = data.output_file;
+                        document.getElementById('result-video').src = `/video/${videoPath}`;
+                        document.getElementById('video-section').classList.remove('hidden');
+                        document.getElementById('stats-section').classList.remove('hidden');
+                        
+                        // Update statistics
+                        updateStats(data);
+                    } else if (data.status === 'failed') {
+                        clearInterval(checkInterval);
+                        document.getElementById('status').textContent = `Failed: ${data.error || 'Unknown error'}`;
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('status').textContent = `Error: ${error.message}`;
+                    clearInterval(checkInterval);
+                });
+        }
+
+        // Update statistics display
+        function updateStats(data) {
+            if (!data.helmet_status || !data.bike_stats) return;
+            
+            // Get helmet statistics
+            const peopleCount = Object.keys(data.helmet_status).length;
+            const bikeCount = Object.keys(data.bike_stats).length;
+            
+            let helmetCount = 0;
+            Object.values(data.helmet_status).forEach(status => {
+                if (status === 'Wearing Helmet') helmetCount++;
+            });
+            
+            const complianceRate = peopleCount > 0 ? Math.round((helmetCount / peopleCount) * 100) : 0;
+            
+            // Update summary statistics
+            document.getElementById('people-count').textContent = peopleCount;
+            document.getElementById('bike-count').textContent = bikeCount;
+            document.getElementById('helmet-count').textContent = helmetCount;
+            document.getElementById('compliance-rate').textContent = `${complianceRate}%`;
+            
+            // Update bike details
+            const bikeDetails = document.getElementById('bike-details');
+            bikeDetails.innerHTML = '';
+            
+            if (bikeCount > 0) {
+                const detailsTable = document.createElement('table');
+                detailsTable.className = 'bike-details-table';
+                
+                // Create table header
+                const thead = document.createElement('thead');
+                thead.innerHTML = `
+                    <tr>
+                        <th>Bike ID</th>
+                        <th>People Count</th>
+                        <th>Helmets Worn</th>
+                        <th>Compliance</th>
+                    </tr>
+                `;
+                detailsTable.appendChild(thead);
+                
+                // Create table body
+                const tbody = document.createElement('tbody');
+                Object.entries(data.bike_stats).forEach(([bikeId, stats]) => {
+                    const row = document.createElement('tr');
+                    const bikeCompliance = stats.total_persons > 0 
+                        ? Math.round((stats.helmets_worn / stats.total_persons) * 100) 
+                        : 0;
+                    
+                    row.innerHTML = `
+                        <td>${bikeId}</td>
+                        <td>${stats.total_persons}</td>
+                        <td>${stats.helmets_worn}</td>
+                        <td>${bikeCompliance}%</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                detailsTable.appendChild(tbody);
+                bikeDetails.appendChild(detailsTable);
+            } else {
+                bikeDetails.innerHTML = '<p>No motorcycles detected</p>';
+            }
+        }
+
+        // Start checking status when the page loads
+        window.onload = function() {
+            // Check status immediately
+            checkStatus();
+            
+            // Then check every 2 seconds
+            checkInterval = setInterval(checkStatus, 2000);
+        };
+    </script>
+</body>
+</html>

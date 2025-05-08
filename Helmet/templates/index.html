@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helmet Detection Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Helmet Detection Dashboard</h1>
+        </header>
+        
+        <main>
+            <div class="upload-container">
+                <div id="drop-area">
+                    <form class="upload-form">
+                        <p>Upload a video for helmet detection</p>
+                        <input type="file" id="fileElem" accept="video/*" onchange="handleFiles(this.files)">
+                        <label class="button" for="fileElem">Select a video</label>
+                        <p>or drag & drop video here</p>
+                    </form>
+                    <div id="gallery"></div>
+                </div>
+            </div>
+            
+            <div class="upload-status">
+                <div id="progress-container" class="hidden">
+                    <h3>Upload Progress</h3>
+                    <div class="progress-bar">
+                        <div id="progress"></div>
+                    </div>
+                    <p id="progress-text">0%</p>
+                </div>
+            </div>
+            
+            <div id="error" class="error hidden">
+                {% if error %}
+                <p>{{ error }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="buttons">
+                <button id="process-btn" class="disabled" disabled>Process Video</button>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; 2025 Helmet Detection System</p>
+        </footer>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
