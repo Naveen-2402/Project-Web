@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Tracking Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+    <style>
+        #videoContainer {
+            position: relative;
+            margin: 20px auto;
+            border: 1px solid #ddd;
+            max-width: 800px;
+        }
+        #videoCanvas {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .point-marker {
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            position: absolute;
+            transform: translate(-50%, -50%);
+            cursor: move;
+        }
+        #setupPanel {
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        #roiTextInputs {
+            display: none;
+        }
+        .btn-primary {
+            margin-top: 10px;
+        }
+        .roi-tab {
+            cursor: pointer;
+            padding: 10px 15px;
+            margin-right: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px 5px 0 0;
+            background-color: #f0f0f0;
+        }
+        .roi-tab.active {
+            background-color: #fff;
+            border-bottom: 1px solid #fff;
+            font-weight: bold;
+        }
+        .roi-tab-content {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 0 5px 5px 5px;
+            margin-top: -1px;
+            background-color: #fff;
+        }
+        .rotation-controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+            gap: 10px;
+        }
+        .rotation-btn {
+            padding: 5px 10px;
+            display: flex;
+            align-items: center;
+        }
+        .rotation-info {
+            text-align: center;
+            margin-top: 5px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">Vehicle Tracking Dashboard</h1>
+        
+        <div id="setupPanel">
+            <h3>Setup</h3>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="videoFile" class="form-label">Upload Video</label>
+                    <input type="file" class="form-control" id="videoFile" name="video" accept="video/*">
+                </div>
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </form>
+        </div>
+        
+        <div id="videoContainer" style="display: none;">
+            <canvas id="videoCanvas"></canvas>
+            <div class="rotation-controls">
+                <button id="rotateLeftBtn" class="btn btn-secondary rotation-btn">
+                    <i class="bi bi-arrow-counterclockwise"></i> Rotate Left
+                </button>
+                <button id="rotateRightBtn" class="btn btn-secondary rotation-btn">
+                    <i class="bi bi-arrow-clockwise"></i> Rotate Right
+                </button>
+            </div>
+            <div id="rotationInfo" class="rotation-info">Rotation: 0°</div>
+        </div>
+        
+        <div id="roiPanel" style="display: none;">
+            <h3>Define Region of Interest (ROI)</h3>
+            
+            <div class="mb-3">
+                <div class="d-flex">
+                    <div id="tabVisual" class="roi-tab active">Visual Selection</div>
+                    <div id="tabText" class="roi-tab">Manual Coordinates</div>
+                </div>
+                
+                <div id="visualInputContent" class="roi-tab-content">
+                    <p>Click and drag the red points to define the region of interest.</p>
+                </div>
+                
+                <div id="textInputContent" class="roi-tab-content" style="display: none;">
+                    <p>Enter the x and y coordinates for each corner point.</p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Point 1 (Top Left)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="point1x" placeholder="X">
+                                <input type="number" class="form-control" id="point1y" placeholder="Y">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Point 2 (Top Right)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="point2x" placeholder="X">
+                                <input type="number" class="form-control" id="point2y" placeholder="Y">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Point 3 (Bottom Right)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="point3x" placeholder="X">
+                                <input type="number" class="form-control" id="point3y" placeholder="Y">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Point 4 (Bottom Left)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="point4x" placeholder="X">
+                                <input type="number" class="form-control" id="point4y" placeholder="Y">
+                            </div>
+                        </div>
+                    </div>
+                    <button id="applyCoordinatesBtn" class="btn btn-primary">Apply Coordinates</button>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="realWidth" class="form-label">Real World Width (meters)</label>
+                    <input type="number" class="form-control" id="realWidth" step="0.1" min="1">
+                </div>
+                <div class="col-md-6">
+                    <label for="realHeight" class="form-label">Real World Height (meters)</label>
+                    <input type="number" class="form-control" id="realHeight" step="0.1" min="1">
+                </div>
+            </div>
+            
+            <button id="startTrackingBtn" class="btn btn-success">Start Tracking</button>
+        </div>
+        
+        <div class="mt-3 text-center">
+            <a href="/results" class="btn btn-info">View Results</a>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadForm = document.getElementById('uploadForm');
+            const videoContainer = document.getElementById('videoContainer');
+            const videoCanvas = document.getElementById('videoCanvas');
+            const roiPanel = document.getElementById('roiPanel');
+            const startTrackingBtn = document.getElementById('startTrackingBtn');
+            const realWidthInput = document.getElementById('realWidth');
+            const realHeightInput = document.getElementById('realHeight');
+            
+            // Rotation controls
+            const rotateLeftBtn = document.getElementById('rotateLeftBtn');
+            const rotateRightBtn = document.getElementById('rotateRightBtn');
+            const rotationInfo = document.getElementById('rotationInfo');
+            let rotationAngle = 0;
+            
+            // ROI Tabs
+            const tabVisual = document.getElementById('tabVisual');
+            const tabText = document.getElementById('tabText');
+            const visualInputContent = document.getElementById('visualInputContent');
+            const textInputContent = document.getElementById('textInputContent');
+            const applyCoordinatesBtn = document.getElementById('applyCoordinatesBtn');
+            
+            // Coordinate inputs
+            const point1x = document.getElementById('point1x');
+            const point1y = document.getElementById('point1y');
+            const point2x = document.getElementById('point2x');
+            const point2y = document.getElementById('point2y');
+            const point3x = document.getElementById('point3x');
+            const point3y = document.getElementById('point3y');
+            const point4x = document.getElementById('point4x');
+            const point4y = document.getElementById('point4y');
+            
+            const ctx = videoCanvas.getContext('2d');
+            let videoPath = null;
+            let videoElement = null;
+            let roiPoints = [];
+            let selectedPointIndex = -1;
+            let pointElements = [];
+            
+            // Initialize Socket.IO
+            const socket = io();
+            
+            // Rotation event handlers
+            rotateLeftBtn.addEventListener('click', function() {
+                rotateVideo('left');
+            });
+            
+            rotateRightBtn.addEventListener('click', function() {
+                rotateVideo('right');
+            });
+            
+            function rotateVideo(direction) {
+                fetch('/rotate_video', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        direction: direction
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        rotationAngle = data.rotation_angle;
+                        rotationInfo.textContent = `Rotation: ${rotationAngle}°`;
+                        
+                        // Adjust canvas dimensions for rotation if needed
+                        if (videoElement && rotationAngle % 180 !== 0) {
+                            // Swap width and height for 90° and 270° rotations
+                            const temp = videoCanvas.width;
+                            videoCanvas.width = videoCanvas.height;
+                            videoCanvas.height = temp;
+                            
+                            // Reset ROI points for new dimensions
+                            resetRoiPoints();
+                        }
+                    } else {
+                        alert('Failed to rotate video: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to rotate video. Please try again.');
+                });
+            }
+            
+            function resetRoiPoints() {
+                const width = videoCanvas.width;
+                const height = videoCanvas.height;
+                
+                // Use default ROI points from perspective-lucas.py when possible
+                if (width >= 1000 && height >= 700) {
+                    roiPoints = [
+                        [63, 668],    // Bottom-left
+                        [992, 667],   // Bottom-right
+                        [764, 86],    // Top-right
+                        [303, 84]     // Top-left
+                    ];
+                } else {
+                    // Fall back to percentage-based positions for different dimensions
+                    roiPoints = [
+                        [width * 0.1, height * 0.9],   // Bottom-left
+                        [width * 0.9, height * 0.9],   // Bottom-right
+                        [width * 0.8, height * 0.1],   // Top-right
+                        [width * 0.2, height * 0.1]    // Top-left
+                    ];
+                }
+                
+                // Update coordinate inputs
+                point1x.value = Math.round(roiPoints[0][0]);
+                point1y.value = Math.round(roiPoints[0][1]);
+                point2x.value = Math.round(roiPoints[1][0]);
+                point2y.value = Math.round(roiPoints[1][1]);
+                point3x.value = Math.round(roiPoints[2][0]);
+                point3y.value = Math.round(roiPoints[2][1]);
+                point4x.value = Math.round(roiPoints[3][0]);
+                point4y.value = Math.round(roiPoints[3][1]);
+                
+                // Update markers
+                createPointMarkers();
+            }
+            
+            // Tab switching
+            tabVisual.addEventListener('click', function() {
+                tabVisual.classList.add('active');
+                tabText.classList.remove('active');
+                visualInputContent.style.display = 'block';
+                textInputContent.style.display = 'none';
+            });
+            
+            tabText.addEventListener('click', function() {
+                tabText.classList.add('active');
+                tabVisual.classList.remove('active');
+                textInputContent.style.display = 'block';
+                visualInputContent.style.display = 'none';
+                
+                // Update text inputs with current points
+                if (roiPoints.length === 4) {
+                    point1x.value = Math.round(roiPoints[0][0]);
+                    point1y.value = Math.round(roiPoints[0][1]);
+                    point2x.value = Math.round(roiPoints[1][0]);
+                    point2y.value = Math.round(roiPoints[1][1]);
+                    point3x.value = Math.round(roiPoints[2][0]);
+                    point3y.value = Math.round(roiPoints[2][1]);
+                    point4x.value = Math.round(roiPoints[3][0]);
+                    point4y.value = Math.round(roiPoints[3][1]);
+                }
+            });
+            
+            // Apply manual coordinates
+            applyCoordinatesBtn.addEventListener('click', function() {
+                const p1x = parseInt(point1x.value);
+                const p1y = parseInt(point1y.value);
+                const p2x = parseInt(point2x.value);
+                const p2y = parseInt(point2y.value);
+                const p3x = parseInt(point3x.value);
+                const p3y = parseInt(point3y.value);
+                const p4x = parseInt(point4x.value);
+                const p4y = parseInt(point4y.value);
+                
+                if (isNaN(p1x) || isNaN(p1y) || isNaN(p2x) || isNaN(p2y) || 
+                    isNaN(p3x) || isNaN(p3y) || isNaN(p4x) || isNaN(p4y)) {
+                    alert('Please enter valid coordinates for all points');
+                    return;
+                }
+                
+                // Update ROI points
+                roiPoints = [
+                    [p1x, p1y],
+                    [p2x, p2y],
+                    [p3x, p3y],
+                    [p4x, p4y]
+                ];
+                
+                // Update markers
+                updatePointMarkers();
+                
+                // Switch to visual tab to see result
+                tabVisual.click();
+            });
+            
+            // Handle video upload
+            uploadForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(uploadForm);
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        videoPath = data.video_path;
+                        initializeVideo(videoPath);
+                    } else {
+                        alert('Upload failed: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Upload failed. Please try again.');
+                });
+            });
+            
+            function initializeVideo(path) {
+                // Create video element
+                videoElement = document.createElement('video');
+                videoElement.src = path;
+                videoElement.autoplay = false;
+                videoElement.loop = true;
+                videoElement.muted = true;
+                
+                videoElement.addEventListener('loadedmetadata', function() {
+                    // Set canvas dimensions
+                    videoCanvas.width = videoElement.videoWidth;
+                    videoCanvas.height = videoElement.videoHeight;
+                    
+                    // Show video container and ROI panel
+                    videoContainer.style.display = 'block';
+                    roiPanel.style.display = 'block';
+                    
+                    // Set default ROI points from perspective-lucas.py
+                    roiPoints = [
+                        [63, 668],    // Bottom-left
+                        [992, 667],   // Bottom-right
+                        [764, 86],    // Top-right
+                        [303, 84]     // Top-left
+                    ];
+                    
+                    // Set default real world dimensions
+                    realWidthInput.value = 5;  // 5 meters width
+                    realHeightInput.value = 15; // 15 meters height
+                    
+                    // Create point markers
+                    createPointMarkers();
+                    
+                    // Populate text inputs
+                    point1x.value = Math.round(roiPoints[0][0]);
+                    point1y.value = Math.round(roiPoints[0][1]);
+                    point2x.value = Math.round(roiPoints[1][0]);
+                    point2y.value = Math.round(roiPoints[1][1]);
+                    point3x.value = Math.round(roiPoints[2][0]);
+                    point3y.value = Math.round(roiPoints[2][1]);
+                    point4x.value = Math.round(roiPoints[3][0]);
+                    point4y.value = Math.round(roiPoints[3][1]);
+                    
+                    // Start video playback
+                    videoElement.play();
+                    
+                    // Start rendering
+                    requestAnimationFrame(render);
+                });
+                
+                videoElement.addEventListener('error', function() {
+                    alert('Error loading video. Please try again.');
+                });
+            }
+            
+            function createPointMarkers() {
+                // Remove existing point markers
+                pointElements.forEach(element => element.remove());
+                pointElements = [];
+                
+                // Create new point markers
+                roiPoints.forEach((point, index) => {
+                    const marker = document.createElement('div');
+                    marker.className = 'point-marker';
+                    marker.style.left = point[0] + 'px';
+                    marker.style.top = point[1] + 'px';
+                    marker.dataset.index = index;
+                    
+                    marker.addEventListener('mousedown', function(e) {
+                        e.preventDefault();
+                        selectedPointIndex = parseInt(this.dataset.index);
+                    });
+                    
+                    videoContainer.appendChild(marker);
+                    pointElements.push(marker);
+                });
+            }
+            
+            function updatePointMarkers() {
+                // Update existing point markers with new positions
+                roiPoints.forEach((point, index) => {
+                    if (pointElements[index]) {
+                        pointElements[index].style.left = point[0] + 'px';
+                        pointElements[index].style.top = point[1] + 'px';
+                    }
+                });
+            }
+            
+            // Handle mouse events for dragging points
+            document.addEventListener('mousemove', function(e) {
+                if (selectedPointIndex !== -1 && videoContainer.contains(e.target)) {
+                    const rect = videoContainer.getBoundingClientRect();
+                    const scaleX = videoCanvas.width / videoContainer.offsetWidth;
+                    const scaleY = videoCanvas.height / videoContainer.offsetHeight;
+                    
+                    // Calculate position relative to video container
+                    const x = (e.clientX - rect.left) * scaleX;
+                    const y = (e.clientY - rect.top) * scaleY;
+                    
+                    // Update point position
+                    roiPoints[selectedPointIndex] = [x, y];
+                    
+                    // Update point marker
+                    const marker = pointElements[selectedPointIndex];
+                    marker.style.left = x + 'px';
+                    marker.style.top = y + 'px';
+                }
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (selectedPointIndex !== -1) {
+                    // Update text inputs when point is released
+                    if (selectedPointIndex === 0) {
+                        point1x.value = Math.round(roiPoints[0][0]);
+                        point1y.value = Math.round(roiPoints[0][1]);
+                    } else if (selectedPointIndex === 1) {
+                        point2x.value = Math.round(roiPoints[1][0]);
+                        point2y.value = Math.round(roiPoints[1][1]);
+                    } else if (selectedPointIndex === 2) {
+                        point3x.value = Math.round(roiPoints[2][0]);
+                        point3y.value = Math.round(roiPoints[2][1]);
+                    } else if (selectedPointIndex === 3) {
+                        point4x.value = Math.round(roiPoints[3][0]);
+                        point4y.value = Math.round(roiPoints[3][1]);
+                    }
+                    selectedPointIndex = -1;
+                }
+            });
+            
+            // Render video and ROI polygon
+            function render() {
+                if (videoElement && videoElement.readyState >= 2) {
+                    // Draw video frame
+                    ctx.drawImage(videoElement, 0, 0, videoCanvas.width, videoCanvas.height);
+                    
+                    // Draw ROI polygon
+                    ctx.beginPath();
+                    ctx.moveTo(roiPoints[0][0], roiPoints[0][1]);
+                    for (let i = 1; i < roiPoints.length; i++) {
+                        ctx.lineTo(roiPoints[i][0], roiPoints[i][1]);
+                    }
+                    ctx.closePath();
+                    ctx.strokeStyle = 'green';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+                
+                requestAnimationFrame(render);
+            }
+            
+            // Start tracking button
+            startTrackingBtn.addEventListener('click', function() {
+                const realWidth = parseFloat(realWidthInput.value);
+                const realHeight = parseFloat(realHeightInput.value);
+                
+                if (!realWidth || !realHeight) {
+                    alert('Please enter valid real-world dimensions');
+                    return;
+                }
+                
+                // Send setup data to server
+                fetch('/setup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        roi_points: roiPoints,
+                        real_width: realWidth,
+                        real_height: realHeight,
+                        rotation_angle: rotationAngle
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Tracking started! Go to Results page to view tracking data.');
+                        window.location.href = '/results';
+                    } else {
+                        alert('Failed to start tracking: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to start tracking. Please try again.');
+                });
+            });
+        });
+    </script>
+</body>
+</html> 

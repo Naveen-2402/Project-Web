@@ -1,2 +1,4 @@
 venv
 models
+yolo11x.pt
+yolov8x.pt

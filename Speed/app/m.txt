@@ -1,0 +1,1 @@
+deploying yolo in sagemaker with endpoints
